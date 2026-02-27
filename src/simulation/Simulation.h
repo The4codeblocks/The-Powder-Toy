@@ -108,6 +108,8 @@ struct RenderableSimulation
 	int pmap[YRES][XRES];
 	int photons[YRES][XRES];
 
+	int getPart(const int x, const int y);
+
 	int edgeMode = EDGE_VOID;
 
 	int aheat_enable = 0;
@@ -115,8 +117,8 @@ struct RenderableSimulation
 	bool useLuaCallbacks = false;
 
 	//Spatial Evaluation
-	void AddPos(float x, float y, float dx, float dy, float& outx, float& outy) const;
-	void DiffPos(float fromX, float fromY, float toX, float toY, float& outx, float& outy) const;
+	void AddPos(const float x, const float y, const float dx, const float dy, float& outx, float& outy) const;
+	void DiffPos(const float fromX, const float fromY, const float toX, const float toY, float& outx, float& outy) const;
 };
 
 class Simulation : public RenderableSimulation

@@ -15,7 +15,7 @@
 #include <cmath>
 #include <algorithm>
 
-static int remainder_p(int x, int y)
+static int iremainder_p(int x, int y)
 {
 	return (x % y) + (x >= 0 ? 0 : y);
 }
@@ -27,7 +27,7 @@ void Renderer::BlendSpaceLine(const Vec2<int> pos, const Vec2<int> dpos, const R
 	case EDGE_LOOP:
 	{
 		RasterizeLine<false>(pos, pos + dpos, [this, color](Vec2<int> ppos) {
-			BlendPixel({ remainder_p(ppos.X - CELL, XRES - 2 * CELL) + CELL, remainder_p(ppos.Y - CELL, YRES - 2 * CELL) + CELL }, color);
+			BlendPixel({ iremainder_p(ppos.X - CELL, XRES - 2 * CELL) + CELL, iremainder_p(ppos.Y - CELL, YRES - 2 * CELL) + CELL }, color);
 		});
 		return;
 	}

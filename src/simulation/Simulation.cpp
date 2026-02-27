@@ -26,6 +26,70 @@ static float remainder_p(float x, float y)
 	return std::fmod(x, y) + (x >= 0 ? 0 : y);
 }
 
+static int iremainder_p(int x, int y)
+{
+	return (x % y) + (x >= 0 ? 0 : y);
+}
+
+int RenderableSimulation::getPart(const int x, const int y)
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return pmap[iremainder_p(y - CELL, YRES - 2 * CELL) + CELL][iremainder_p(x - CELL, XRES - 2 * CELL) + CELL];
+	default:
+	case EDGE_VOID:
+		return pmap[y][x];
+	}
+}
+
+void RenderableSimulation::AddPos(const float x, const float y, const float dx, const float dy, float& outx, float& outy) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		outx = x + dx;
+		outy = y + dy;
+		if (!(outx >= CELL - .5f && outx < XRES - CELL - .5f))
+			outx = remainder_p(outx - CELL + .5f, XRES - CELL * 2.0f) + CELL - .5f;
+		if (!(outy >= CELL - .5f && outy < YRES - CELL - .5f))
+			outy = remainder_p(outy - CELL + .5f, YRES - CELL * 2.0f) + CELL - .5f;
+		return;
+	case EDGE_VOID:
+	default:
+		outx = x + dx;
+		outy = y + dy;
+		return;
+	}
+}
+
+void RenderableSimulation::DiffPos(const float fromX, const float fromY, const float toX, const float toY, float& outx, float& outy) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		outx = toX - fromX;
+		outy = toY - fromY;
+
+		if (outx > XRES * 0.5f - CELL)
+			outx -= XRES - CELL * 2.0f;
+		else if (-outx > XRES * 0.5f - CELL)
+			outx += XRES - CELL * 2.0f;
+
+		if (outy > YRES * 0.5f - CELL)
+			outy -= YRES - CELL * 2.0f;
+		else if (-outy > YRES * 0.5f - CELL)
+			outy += YRES - CELL * 2.0f;
+
+		return;
+	case EDGE_VOID:
+	default:
+		outx = toX - fromX;
+		outy = toY - fromY;
+		return;
+	}
+}
+
 void Simulation::Load(const GameSave* save, bool includePressure, Vec2<int> blockP) // block coordinates
 {
 	auto partP = blockP * CELL;
@@ -2040,53 +2104,6 @@ void Simulation::create_cherenkov_photon(int pp)//photons from NEUT going throug
 	auto r = 1.269f / std::hypot(parts[i].vx, parts[i].vy);
 	parts[i].vx *= r;
 	parts[i].vy *= r;
-}
-
-void RenderableSimulation::AddPos(const float x, const float y, const float dx, const float dy, float & outx, float & outy) const
-{
-	switch (this->edgeMode)
-	{
-	case EDGE_LOOP:
-		outx = x + dx;
-		outy = y + dy;
-		if (!(outx >= CELL - .5f && outx < XRES - CELL - .5f))
-			outx = remainder_p(outx - CELL + .5f, XRES - CELL * 2.0f) + CELL - .5f;
-		if (!(outy >= CELL - .5f && outy < YRES - CELL - .5f))
-			outy = remainder_p(outy - CELL + .5f, YRES - CELL * 2.0f) + CELL - .5f;
-		return;
-	case EDGE_VOID:
-	default:
-		outx = x + dx;
-		outy = y + dy;
-		return;
-	}
-}
-
-void RenderableSimulation::DiffPos(const float fromX, const float fromY, const float toX, const float toY, float& outx, float& outy) const
-{
-	switch (this->edgeMode)
-	{
-	case EDGE_LOOP:
-		outx = toX - fromX;
-		outy = toY - fromY;
-
-		if (outx > XRES * 0.5f - CELL)
-			outx -= XRES - CELL * 2.0f;
-		else if (-outx > XRES * 0.5f - CELL)
-			outx += XRES - CELL * 2.0f;
-
-		if (outy > YRES * 0.5f - CELL)
-			outy -= YRES - CELL * 2.0f;
-		else if (-outy > YRES * 0.5f - CELL)
-			outy += YRES - CELL * 2.0f;
-
-		return;
-	case EDGE_VOID:
-	default:
-		outx = toX - fromX;
-		outy = toY - fromY;
-		return;
-	}
 }
 
 void Simulation::GetGravityField(int x, int y, float particleGrav, float newtonGrav, float& pGravX, float& pGravY) const
