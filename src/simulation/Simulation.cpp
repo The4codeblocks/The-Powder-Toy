@@ -91,6 +91,18 @@ bool RenderableSimulation::isPosValid(const int x, const int y) const
 	}
 }
 
+bool RenderableSimulation::isPosSafe(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return true;
+	default:
+	case EDGE_VOID:
+		return (x >= CELL && y >= CELL && x < XRES - CELL && y < YRES - CELL);
+	}
+}
+
 void RenderableSimulation::AddPos(const float x, const float y, const float dx, const float dy, float& outx, float& outy) const
 {
 	switch (this->edgeMode)

@@ -116,6 +116,7 @@ struct RenderableSimulation
 	int edgeMode = EDGE_VOID;
 
 	bool isPosValid(const int x, const int y) const;
+	bool isPosSafe(const int x, const int y) const; //"Is position exempt from automatic voiding?"
 
 	void setPos(const int i, const float nx, const float ny);
 
