@@ -392,10 +392,10 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 
 	//Charge detector wall if foot inside
 	if (InBounds(int(playerp->legs[4]+0.5)/CELL, int(playerp->legs[5]+0.5)/CELL) &&
-	       sim->bmap[(int)(playerp->legs[5]+0.5)/CELL][(int)(playerp->legs[4]+0.5)/CELL]==WL_DETECT)
+	       sim->getBlock(int(playerp->legs[4]+0.5)/CELL, int(playerp->legs[5] + 0.5) / CELL)==WL_DETECT)
 		sim->set_emap((int)playerp->legs[4]/CELL, (int)playerp->legs[5]/CELL);
 	if (InBounds(int(playerp->legs[12]+0.5)/CELL, int(playerp->legs[13]+0.5)/CELL) &&
-	        sim->bmap[(int)(playerp->legs[13]+0.5)/CELL][(int)(playerp->legs[12]+0.5)/CELL]==WL_DETECT)
+	        sim->getBlock(int(playerp->legs[12] + 0.5) / CELL, int(playerp->legs[13]+0.5)/CELL)==WL_DETECT)
 		sim->set_emap((int)(playerp->legs[12]+0.5)/CELL, (int)(playerp->legs[13]+0.5)/CELL);
 
 	//Searching for particles near head
@@ -403,11 +403,12 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 		for (ry=-2; ry<3; ry++)
 			if (x+rx>=0 && y+ry>0 && x+rx<XRES && y+ry<YRES && (rx || ry))
 			{
-				r = pmap[y+ry][x+rx];
+				r = sim->getPart(x+rx,y+ry);
 				if (!r)
-					r = sim->photons[y+ry][x+rx];
+					r = sim->getPhoton(x+rx,y+ry);
 
-				if (!r && !sim->bmap[(y+ry)/CELL][(x+rx)/CELL])
+				unsigned char block = sim->readBlock((x+rx)/CELL,(y+ry)/CELL);
+				if (!r && !block)
 					continue;
 
 				Element_STKM_set_element(sim, playerp, TYP(r));
@@ -426,11 +427,11 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 					else parts[i].life = int(parts[i].life * 0.9f);
 					sim->kill_part(ID(r));
 				}
-				if (sim->bmap[(ry+y)/CELL][(rx+x)/CELL]==WL_FAN)
+				if (block==WL_FAN)
 					playerp->fan = true;
-				else if (sim->bmap[(ry+y)/CELL][(rx+x)/CELL]==WL_EHOLE)
+				else if (block==WL_EHOLE)
 					playerp->rocketBoots = false;
-				else if (sim->bmap[(ry+y)/CELL][(rx+x)/CELL]==WL_GRAV /* && parts[i].type!=PT_FIGH */)
+				else if (block==WL_GRAV /* && parts[i].type!=PT_FIGH */)
 					playerp->rocketBoots = true;
 				if (TYP(r)==PT_PRTI)
 					Element_STKM_interact(sim, playerp, i, rx, ry);
