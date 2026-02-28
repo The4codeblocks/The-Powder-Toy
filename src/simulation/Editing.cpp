@@ -11,6 +11,7 @@
 #include "gui/game/Brush.h"
 #include <iostream>
 #include <cmath>
+#include "common/RasterGeometry.h"
 
 std::unique_ptr<Snapshot> Simulation::CreateSnapshot() const
 {
@@ -356,7 +357,7 @@ int Simulation::FloodWalls(int x, int y, int wall, int bm)
 
 int Simulation::CreatePartFlags(int p, int x, int y, int c, int flags)
 {
-	if (x < 0 || y < 0 || x >= XRES || y >= YRES)
+	if (!isPosValid(x,y))
 	{
 		return 0;
 	}
@@ -767,7 +768,8 @@ int Simulation::CreateParts(int p, int positionX, int positionY, int c, Brush co
 	for (ui::Point off : cBrush)
 	{
 		ui::Point coords = ui::Point(positionX, positionY) + off;
-		if (coords.X >= 0 && coords.Y >= 0 && coords.X < XRES && coords.Y < YRES)
+		//std::cout << cBrush.wrap;
+		if (/*(edgeMode == EDGE_LOOP && cBrush.wrap) ||*/ false ? isPosSafe(coords.X, coords.Y) : (coords.X >= CELL && coords.Y >= CELL && coords.X < XRES - CELL && coords.Y < YRES - CELL))
 			CreatePartFlags(p, coords.X, coords.Y, c, flags);
 	}
 	return 0;
@@ -807,54 +809,18 @@ int Simulation::CreateParts(int p, int x, int y, int rx, int ry, int c, int flag
 	return !created;
 }
 
-void Simulation::CreateLine(int x1, int y1, int x2, int y2, int c, Brush const &cBrush, int flags)
+void Simulation::CreateLine(int x, int y, int dx, int dy, int c, Brush const &cBrush, int flags)
 {
-	int x, y, dx, dy, sy, rx = cBrush.GetRadius().X, ry = cBrush.GetRadius().Y;
-	bool reverseXY = abs(y2-y1) > abs(x2-x1);
-	float e = 0.0f, de;
-	if (reverseXY)
-	{
-		y = x1;
-		x1 = y1;
-		y1 = y;
-		y = x2;
-		x2 = y2;
-		y2 = y;
-	}
-	if (x1 > x2)
-	{
-		y = x1;
-		x1 = x2;
-		x2 = y;
-		y = y1;
-		y1 = y2;
-		y2 = y;
-	}
-	dx = x2 - x1;
-	dy = abs(y2 - y1);
-	de = dx ? dy/(float)dx : 0.0f;
-	y = y1;
-	sy = (y1<y2) ? 1 : -1;
-	for (x=x1; x<=x2; x++)
-	{
-		if (reverseXY)
-			CreateParts(-2, y, x, c, cBrush, flags);
-		else
-			CreateParts(-2, x, y, c, cBrush, flags);
-		e += de;
-		if (e >= 0.5f)
-		{
-			y += sy;
-			if (!(rx+ry) && ((y1<y2) ? (y<=y2) : (y>=y2)))
-			{
-				if (reverseXY)
-					CreateParts(-2, y, x, c, cBrush, flags);
-				else
-					CreateParts(-2, x, y, c, cBrush, flags);
-			}
-			e -= 1.0f;
-		}
-	}
+	int rx = cBrush.GetRadius().X, ry = cBrush.GetRadius().Y;
+
+	int v = ID(c);
+
+	auto lambda = [this, c, &cBrush, flags](Vec2<int> pos) {
+		CreateParts(-2, pos.X, pos.Y, c, cBrush, flags);
+	};
+
+	if (rx+ry) RasterizeLine<true >({ x, y }, { x + dx, y + dy }, lambda);
+	else       RasterizeLine<false>({ x, y }, { x + dx, y + dy }, lambda);
 }
 
 void Simulation::CreateBox(int p, int x1, int y1, int x2, int y2, int c, int flags)

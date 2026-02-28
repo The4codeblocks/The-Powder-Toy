@@ -104,6 +104,11 @@ struct RenderableSimulation
 	unsigned char bmap[YCELLS][XCELLS];
 	unsigned char emap[YCELLS][XCELLS];
 
+	unsigned char& getBlock(const int x, const int y);
+	unsigned char& getBlockE(const int x, const int y);
+	unsigned char readBlock(const int x, const int y) const;
+	unsigned char readBlockE(const int x, const int y) const;
+
 	Parts parts;
 	int pmap[YRES][XRES];
 	int photons[YRES][XRES];
@@ -127,6 +132,7 @@ struct RenderableSimulation
 	//Spatial Evaluation
 	void AddPos(const float x, const float y, const float dx, const float dy, float& outx, float& outy) const;
 	void DiffPos(const float fromX, const float fromY, const float toX, const float toY, float& outx, float& outy) const;
+	Vec2<int> DiffPos(const Vec2<int> from, const Vec2<int> to) const;
 };
 
 class Simulation : public RenderableSimulation
@@ -260,8 +266,8 @@ public:
 	int CreateParts(int p, int positionX, int positionY, int c, Brush const& cBrush, int flags);
 	int CreateParts(int p, int x, int y, int rx, int ry, int c, int flags);
 	int CreatePartFlags(int p, int x, int y, int c, int flags);
-	void CreateLine(int x1, int y1, int x2, int y2, int c, Brush const& cBrush, int flags);
-	void CreateLine(int x1, int y1, int x2, int y2, int c);
+	void CreateLine(int x, int y, int dx, int dy, int c, Brush const& cBrush, int flags);
+	void CreateLine(int x, int y, int dx, int dy, int c);
 	void CreateBox(int p, int x1, int y1, int x2, int y2, int c, int flags);
 	int FloodParts(int x, int y, int c, int cm, int flags);
 

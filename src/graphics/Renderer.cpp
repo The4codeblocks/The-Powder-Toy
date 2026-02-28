@@ -20,20 +20,47 @@ static int iremainder_p(int x, int y)
 	return (x % y) + (x >= 0 ? 0 : y);
 }
 
+void Renderer::BlendSpacePixel(const Vec2<int> pos, const RGBA color) //BlendPixel which accounts for spatial effects like edge loop
+{
+	BlendPixel({ iremainder_p(pos.X - CELL, XRES - 2 * CELL) + CELL, iremainder_p(pos.Y - CELL, YRES - 2 * CELL) + CELL }, color);
+}
+
+void Renderer::DrawSpacePixel(const Vec2<int> pos, const RGB color) //DrawPixel which accounts for spatial effects like edge loop
+{
+	DrawPixel({ iremainder_p(pos.X - CELL, XRES - 2 * CELL) + CELL, iremainder_p(pos.Y - CELL, YRES - 2 * CELL) + CELL }, color);
+}
+
 void Renderer::BlendSpaceLine(const Vec2<int> pos, const Vec2<int> dpos, const RGBA color) //BlendLine which accounts for spatial effects like edge loop
 {
-	switch (this->sim->edgeMode)
+	switch (sim->edgeMode)
 	{
 	case EDGE_LOOP:
 	{
 		RasterizeLine<false>(pos, pos + dpos, [this, color](Vec2<int> ppos) {
-			BlendPixel({ iremainder_p(ppos.X - CELL, XRES - 2 * CELL) + CELL, iremainder_p(ppos.Y - CELL, YRES - 2 * CELL) + CELL }, color);
+			BlendSpacePixel(ppos, color);
 		});
 		return;
 	}
 	default:
 	case EDGE_VOID:
 		BlendLine(pos, pos + dpos, color);
+	}
+}
+
+void Renderer::DrawSpaceLine(const Vec2<int> pos, const Vec2<int> dpos, const RGB color) //DrawLine which accounts for spatial effects like edge loop
+{
+	switch (sim->edgeMode)
+	{
+	case EDGE_LOOP:
+	{
+		RasterizeLine<false>(pos, pos + dpos, [this, color](Vec2<int> ppos) {
+			DrawSpacePixel(ppos, color);
+			});
+		return;
+	}
+	default:
+	case EDGE_VOID:
+		DrawLine(pos, pos + dpos, color);
 	}
 }
 
@@ -533,20 +560,6 @@ void Renderer::render_parts()
 								dx, dy
 							);
 							BlendSpaceLine({ nx, ny }, { int(dx + 0.5), int(dy + 0.5) }, RGBA(colr, colg, colb, cola));
-							/*
-							for (int ox = -1; ox < 2; ++ox)
-							{
-								int x1 = nx + ox * (XRES - CELL * 2);
-								int x2 = x1 + int(dx + 0.5);
-								if ((x1 > CELL && x1 < XRES - CELL) || (x2 > CELL && x2 < XRES - CELL))
-									for (int oy = -1; oy < 2; ++oy)
-									{
-										int y1 = ny + oy * (YRES - CELL * 2);
-										int y2 = y1 + int(dy + 0.5f);
-										if ((y1 > CELL && y1 < YRES - CELL) || (y2 > CELL && y2 < YRES - CELL))
-											BlendLine({ x1, y1 }, { x2, y2 }, RGBA(colr, colg, colb, cola));
-									}
-							}*/
 						}
 					}
 				}
@@ -635,23 +648,27 @@ void Renderer::render_parts()
 					//head
 					if(t==PT_FIGH)
 					{
-						DrawLine({ nx, ny+2 }, { nx+2, ny }, RGB(colr, colg, colb));
-						DrawLine({ nx+2, ny }, { nx, ny-2 }, RGB(colr, colg, colb));
-						DrawLine({ nx, ny-2 }, { nx-2, ny }, RGB(colr, colg, colb));
-						DrawLine({ nx-2, ny }, { nx, ny+2 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx, ny+2 }, { +2, -2 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx+2, ny }, { -2, -2 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx, ny-2 }, { -2, +2 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx-2, ny }, { +2, +2 }, RGB(colr, colg, colb));
 					}
 					else
 					{
-						DrawLine({ nx-2, ny+2 }, { nx+2, ny+2 }, RGB(colr, colg, colb));
-						DrawLine({ nx-2, ny-2 }, { nx+2, ny-2 }, RGB(colr, colg, colb));
-						DrawLine({ nx-2, ny-2 }, { nx-2, ny+2 }, RGB(colr, colg, colb));
-						DrawLine({ nx+2, ny-2 }, { nx+2, ny+2 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx-2, ny+2 }, { +4, 0 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx-2, ny-2 }, { +4, 0 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx-2, ny-2 }, { 0, +4 }, RGB(colr, colg, colb));
+						DrawSpaceLine({ nx+2, ny-2 }, { 0, +4 }, RGB(colr, colg, colb));
 					}
 					//legs
-					DrawLine({                    nx,                  ny+3 }, { int(cplayer->legs[ 0]), int(cplayer->legs[ 1]) }, RGB(legr, legg, legb));
-					DrawLine({ int(cplayer->legs[0]), int(cplayer->legs[1]) }, { int(cplayer->legs[ 4]), int(cplayer->legs[ 5]) }, RGB(legr, legg, legb));
-					DrawLine({                    nx,                  ny+3 }, { int(cplayer->legs[ 8]), int(cplayer->legs[ 9]) }, RGB(legr, legg, legb));
-					DrawLine({ int(cplayer->legs[8]), int(cplayer->legs[9]) }, { int(cplayer->legs[12]), int(cplayer->legs[13]) }, RGB(legr, legg, legb));
+					Vec2<int> p1 = {                    nx,                  ny+3 };
+					Vec2<int> p2 = { int(cplayer->legs[0]), int(cplayer->legs[1]) };
+					Vec2<int> p3 = {                    nx,                  ny+3 };
+					Vec2<int> p4 = { int(cplayer->legs[8]), int(cplayer->legs[9]) };
+					DrawSpaceLine(p1, sim->DiffPos(p1, { int(cplayer->legs[ 0]), int(cplayer->legs[ 1]) }), RGB(legr, legg, legb));
+					DrawSpaceLine(p2, sim->DiffPos(p2, { int(cplayer->legs[ 4]), int(cplayer->legs[ 5]) }), RGB(legr, legg, legb));
+					DrawSpaceLine(p3, sim->DiffPos(p3, { int(cplayer->legs[ 8]), int(cplayer->legs[ 9]) }), RGB(legr, legg, legb));
+					DrawSpaceLine(p4, sim->DiffPos(p4, { int(cplayer->legs[12]), int(cplayer->legs[13]) }), RGB(legr, legg, legb));
 					if (cplayer->rocketBoots)
 					{
 						for (int leg=0; leg<2; leg++)
@@ -659,18 +676,18 @@ void Renderer::render_parts()
 							int nx = int(cplayer->legs[leg*8+4]), ny = int(cplayer->legs[leg*8+5]);
 							int colr = 255, colg = 0, colb = 255;
 							if (((int)(cplayer->comm)&0x04) == 0x04 || (((int)(cplayer->comm)&0x01) == 0x01 && leg==0) || (((int)(cplayer->comm)&0x02) == 0x02 && leg==1))
-								DrawPixel({ nx, ny }, 0x00FF00_rgb);
+								DrawSpacePixel({ nx, ny }, 0x00FF00_rgb);
 							else
-								DrawPixel({ nx, ny }, 0xFF0000_rgb);
-							BlendPixel({ nx+1, ny }, RGBA(colr, colg, colb, 223));
-							BlendPixel({ nx-1, ny }, RGBA(colr, colg, colb, 223));
-							BlendPixel({ nx, ny+1 }, RGBA(colr, colg, colb, 223));
-							BlendPixel({ nx, ny-1 }, RGBA(colr, colg, colb, 223));
+								DrawSpacePixel({ nx, ny }, 0xFF0000_rgb);
+							BlendSpacePixel({ nx+1, ny }, RGBA(colr, colg, colb, 223));
+							BlendSpacePixel({ nx-1, ny }, RGBA(colr, colg, colb, 223));
+							BlendSpacePixel({ nx, ny+1 }, RGBA(colr, colg, colb, 223));
+							BlendSpacePixel({ nx, ny-1 }, RGBA(colr, colg, colb, 223));
 
-							BlendPixel({ nx+1, ny-1 }, RGBA(colr, colg, colb, 112));
-							BlendPixel({ nx-1, ny-1 }, RGBA(colr, colg, colb, 112));
-							BlendPixel({ nx+1, ny+1 }, RGBA(colr, colg, colb, 112));
-							BlendPixel({ nx-1, ny+1 }, RGBA(colr, colg, colb, 112));
+							BlendSpacePixel({ nx+1, ny-1 }, RGBA(colr, colg, colb, 112));
+							BlendSpacePixel({ nx-1, ny-1 }, RGBA(colr, colg, colb, 112));
+							BlendSpacePixel({ nx+1, ny+1 }, RGBA(colr, colg, colb, 112));
+							BlendSpacePixel({ nx-1, ny+1 }, RGBA(colr, colg, colb, 112));
 						}
 					}
 				}
@@ -680,7 +697,7 @@ void Renderer::render_parts()
 				}
 				if(pixel_mode & PMODE_BLEND)
 				{
-					BlendPixel({ nx, ny }, RGBA(colr, colg, colb, cola));
+					BlendSpacePixel({ nx, ny }, RGBA(colr, colg, colb, cola));
 				}
 				if(pixel_mode & PMODE_ADD)
 				{

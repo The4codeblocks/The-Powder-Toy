@@ -7,7 +7,7 @@ void ElementTool::Draw(Simulation * sim, Brush const &brush, ui::Point position)
 	sim->CreateParts(-2, position.X, position.Y, ToolID, brush, -1);
 }
 void ElementTool::DrawLine(Simulation * sim, Brush const &brush, ui::Point position1, ui::Point position2, bool dragging) {
-	sim->CreateLine(position1.X, position1.Y, position2.X, position2.Y, ToolID, brush, -1);
+	sim->CreateLine(position1.X, position1.Y, position2.X - position1.X, position2.Y - position1.Y, ToolID, brush, -1);
 }
 void ElementTool::DrawRect(Simulation * sim, Brush const &brush, ui::Point position1, ui::Point position2) {
 	sim->CreateBox(-2, position1.X, position1.Y, position2.X, position2.Y, ToolID, -1);

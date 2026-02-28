@@ -20,6 +20,7 @@
 #include <iostream>
 #include <set>
 #include <stack>
+#include "common/RasterGeometry.h"
 
 static float remainder_p(float x, float y)
 {
@@ -52,6 +53,72 @@ int& RenderableSimulation::getPhoton(const int x, const int y)
 	default:
 	case EDGE_VOID:
 		return photons[y][x];
+	}
+}
+
+unsigned char dummy = 0;
+
+unsigned char& RenderableSimulation::getBlock(const int x, const int y)
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return bmap[iremainder_p(y - 1, YCELLS - 2) + 1][iremainder_p(x - 1, XCELLS - 2) + 1];
+	default:
+	case EDGE_VOID:
+		if (x < 1) return dummy;
+		if (y < 1) return dummy;
+		if (x > XCELLS - 1) return dummy;
+		if (y > XCELLS - 1) return dummy;
+		return bmap[y][x];
+	}
+}
+
+unsigned char& RenderableSimulation::getBlockE(const int x, const int y)
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return emap[iremainder_p(y - 1, YCELLS - 2) + 1][iremainder_p(x - 1, XCELLS - 2) + 1];
+	default:
+	case EDGE_VOID:
+		if (x < 1) return dummy;
+		if (y < 1) return dummy;
+		if (x > XCELLS - 1) return dummy;
+		if (y > XCELLS - 1) return dummy;
+		return emap[y][x];
+	}
+}
+
+unsigned char RenderableSimulation::readBlock(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return bmap[iremainder_p(y - 1, YCELLS - 2) + 1][iremainder_p(x - 1, XCELLS - 2) + 1];
+	default:
+	case EDGE_VOID:
+		if (x < 1) return 0;
+		if (y < 1) return 0;
+		if (x > XCELLS - 1) return 0;
+		if (y > XCELLS - 1) return 0;
+		return bmap[y][x];
+	}
+}
+
+unsigned char RenderableSimulation::readBlockE(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return emap[iremainder_p(y - 1, YCELLS - 2) + 1][iremainder_p(x - 1, XCELLS - 2) + 1];
+	default:
+	case EDGE_VOID:
+		if (x < 1) return 0;
+		if (y < 1) return 0;
+		if (x > XCELLS - 1) return 0;
+		if (y > XCELLS - 1) return 0;
+		return emap[y][x];
 	}
 }
 
@@ -147,6 +214,33 @@ void RenderableSimulation::DiffPos(const float fromX, const float fromY, const f
 		outx = toX - fromX;
 		outy = toY - fromY;
 		return;
+	}
+}
+
+Vec2<int> RenderableSimulation::DiffPos(const Vec2<int> from, const Vec2<int> to) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+	{
+		int dx = to.X - from.X;
+		int dy = to.Y - from.Y;
+
+		if (dx > XRES * 0.5f - CELL)
+			dx -= XRES - CELL * 2.0f;
+		else if (-dx > XRES * 0.5f - CELL)
+			dx += XRES - CELL * 2.0f;
+
+		if (dy > YRES * 0.5f - CELL)
+			dy -= YRES - CELL * 2.0f;
+		else if (-dy > YRES * 0.5f - CELL)
+			dy += YRES - CELL * 2.0f;
+
+		return { dx, dy };
+	}
+	case EDGE_VOID:
+	default:
+		return to - from;
 	}
 }
 
@@ -915,67 +1009,24 @@ void Simulation::SetEdgeMode(int newEdgeMode)
 
 // Now simply creates a 0 pixel radius line without all the complicated flags / other checks
 // Would make sense to move to Editing.cpp but SPRK needs it.
-void Simulation::CreateLine(int x1, int y1, int x2, int y2, int c)
+void Simulation::CreateLine(int x, int y, int dx, int dy, int c)
 {
-	bool reverseXY = abs(y2 - y1) > abs(x2 - x1);
-	int x, y, dx, dy, sy;
-	float e, de;
 	int v = ID(c);
-	c = TYP(c);
-	if (reverseXY)
-	{
-		y = x1;
-		x1 = y1;
-		y1 = y;
-		y = x2;
-		x2 = y2;
-		y2 = y;
-	}
-	if (x1 > x2)
-	{
-		y = x1;
-		x1 = x2;
-		x2 = y;
-		y = y1;
-		y1 = y2;
-		y2 = y;
-	}
-	dx = x2 - x1;
-	dy = abs(y2 - y1);
-	e = 0.0f;
-	de = dx ? dy / (float)dx : 0.0f;
-	y = y1;
-	sy = (y1 < y2) ? 1 : -1;
-	for (x = x1; x <= x2; x++)
-	{
-		if (reverseXY)
-			create_part(-1, y, x, c, v);
-		else
-			create_part(-1, x, y, c, v);
-		e += de;
-		if (e >= 0.5f)
-		{
-			y += sy;
-			if ((y1 < y2) ? (y <= y2) : (y >= y2))
-			{
-				if (reverseXY)
-					create_part(-1, y, x, c, v);
-				else
-					create_part(-1, x, y, c, v);
-			}
-			e -= 1.0f;
-		}
-	}
+
+	RasterizeLine<true>({ x, y }, { x + dx, y + dy } , [this, c, v](Vec2<int> pos) {
+		create_part(-1, pos.X, pos.Y, c, v);
+	});
 }
 
 inline int Simulation::is_wire(int x, int y)
 {
-	return bmap[y][x] == WL_DETECT || bmap[y][x] == WL_EWALL || bmap[y][x] == WL_ALLOWLIQUID || bmap[y][x] == WL_WALLELEC || bmap[y][x] == WL_ALLOWALLELEC || bmap[y][x] == WL_EHOLE || bmap[y][x] == WL_STASIS;
+	unsigned char block = getBlock(x,y);
+	return block == WL_DETECT || block == WL_EWALL || block == WL_ALLOWLIQUID || block == WL_WALLELEC || block == WL_ALLOWALLELEC || block == WL_EHOLE || block == WL_STASIS;
 }
 
 inline int Simulation::is_wire_off(int x, int y)
 {
-	return (bmap[y][x] == WL_DETECT || bmap[y][x] == WL_EWALL || bmap[y][x] == WL_ALLOWLIQUID || bmap[y][x] == WL_WALLELEC || bmap[y][x] == WL_ALLOWALLELEC || bmap[y][x] == WL_EHOLE || bmap[y][x] == WL_STASIS) && emap[y][x] < 8;
+	return is_wire(x,y) && getBlockE(x,y) < 8;
 }
 
 // implement __builtin_ctz and __builtin_clz on msvc
@@ -1042,59 +1093,45 @@ int Simulation::get_wavelength_bin(int* wm)
 
 void Simulation::set_emap(int x, int y)
 {
-	int x1, x2;
-
 	if (!is_wire_off(x, y))
 		return;
 
-	// go left as far as possible
-	x1 = x2 = x;
-	while (x1 > 0)
-	{
-		if (!is_wire_off(x1 - 1, y))
-			break;
-		x1--;
+	getBlockE(x, y) = 16;
+
+	if (is_wire(x + 1, y)) {
+		if (is_wire(x + 1, y + 1) && is_wire(x + 1, y - 1) && is_wire(x + 2, y))
+		{
+			getBlockE(x + 1, y) = 16;
+			set_emap(x + 2, y);
+		}
+		else set_emap(x + 1, y);
 	}
-	while (x2 < XCELLS - 1)
-	{
-		if (!is_wire_off(x2 + 1, y))
-			break;
-		x2++;
+	if (is_wire(x - 1, y)) {
+		if (is_wire(x - 1, y + 1) && is_wire(x - 1, y - 1) && is_wire(x - 2, y))
+		{
+			getBlockE(x - 1, y) = 16;
+			set_emap(x - 2, y);
+		}
+		else set_emap(x - 1, y);
 	}
 
-	// fill span
-	for (x = x1; x <= x2; x++)
-		emap[y][x] = 16;
+	if (is_wire(x, y + 1)) {
+		if (is_wire(x + 1, y + 1) && is_wire(x - 1, y + 1) && is_wire(x, y + 2))
+		{
+			getBlockE(x, y + 1) = 16;
+			set_emap(x, y + 2);
+		}
+		else set_emap(x, y + 1);
+	}
+	if (is_wire(x, y - 1)) {
+		if (is_wire(x + 1, y - 1) && is_wire(x - 1, y - 1) && is_wire(x, y - 2))
+		{
+			getBlockE(x, y - 1) = 16;
+			set_emap(x, y - 2);
+		}
+		else set_emap(x, y - 1);
+	}
 
-	// fill children
-
-	if (y > 1 && x1 == x2 &&
-		is_wire(x1 - 1, y - 1) && is_wire(x1, y - 1) && is_wire(x1 + 1, y - 1) &&
-		!is_wire(x1 - 1, y - 2) && is_wire(x1, y - 2) && !is_wire(x1 + 1, y - 2))
-		set_emap(x1, y - 2);
-	else if (y > 0)
-		for (x = x1; x <= x2; x++)
-			if (is_wire_off(x, y - 1))
-			{
-				if (x == x1 || x == x2 || y >= YCELLS - 1 ||
-					is_wire(x - 1, y - 1) || is_wire(x + 1, y - 1) ||
-					is_wire(x - 1, y + 1) || !is_wire(x, y + 1) || is_wire(x + 1, y + 1))
-					set_emap(x, y - 1);
-			}
-
-	if (y < YCELLS - 2 && x1 == x2 &&
-		is_wire(x1 - 1, y + 1) && is_wire(x1, y + 1) && is_wire(x1 + 1, y + 1) &&
-		!is_wire(x1 - 1, y + 2) && is_wire(x1, y + 2) && !is_wire(x1 + 1, y + 2))
-		set_emap(x1, y + 2);
-	else if (y < YCELLS - 1)
-		for (x = x1; x <= x2; x++)
-			if (is_wire_off(x, y + 1))
-			{
-				if (x == x1 || x == x2 || y < 0 ||
-					is_wire(x - 1, y + 1) || is_wire(x + 1, y + 1) ||
-					is_wire(x - 1, y - 1) || !is_wire(x, y - 1) || is_wire(x + 1, y - 1))
-					set_emap(x, y + 1);
-			}
 }
 
 int Simulation::parts_avg(int ci, int ni, int t)
@@ -1192,9 +1229,10 @@ bool Simulation::IsWallBlocking(int x, int y, int type) const
 {
 	auto& sd = SimulationData::CRef();
 	auto& elements = sd.elements;
-	if (bmap[y / CELL][x / CELL])
+	int block = readBlock(x / CELL, y / CELL);
+	if (block)
 	{
-		int wall = bmap[y / CELL][x / CELL];
+		int wall = block;
 		if (wall == WL_ALLOWGAS && !(elements[type].Properties & TYPE_GAS))
 			return true;
 		else if (wall == WL_ALLOWENERGY && !(elements[type].Properties & TYPE_ENERGY))
@@ -1205,7 +1243,7 @@ bool Simulation::IsWallBlocking(int x, int y, int type) const
 			return true;
 		else if (wall == WL_ALLOWAIR || wall == WL_WALL || wall == WL_WALLELEC)
 			return true;
-		else if (wall == WL_EWALL && !emap[y / CELL][x / CELL])
+		else if (wall == WL_EWALL && !readBlockE(x / CELL, y / CELL))
 			return true;
 		else if (wall == WL_DETECT && (elements[type].Properties & TYPE_SOLID))
 			return true;
@@ -1295,11 +1333,12 @@ int Simulation::eval_move(int pt, int nx, int ny, unsigned* rr) const
 			result = 1;
 		}
 	}
-	if (bmap[ny / CELL][nx / CELL])
+	unsigned char block = readBlock(nx / CELL, ny / CELL);
+	if (block)
 	{
 		if (IsWallBlocking(nx, ny, pt))
 			return 0;
-		if (bmap[ny / CELL][nx / CELL] == WL_EHOLE && !emap[ny / CELL][nx / CELL] && !(elements[pt].Properties & TYPE_SOLID) && !(elements[TYP(r)].Properties & TYPE_SOLID))
+		if (block == WL_EHOLE && !readBlockE(nx / CELL, ny / CELL) && !(elements[pt].Properties & TYPE_SOLID) && !(elements[TYP(r)].Properties & TYPE_SOLID))
 			return 2;
 	}
 	return result;
@@ -1570,7 +1609,7 @@ int Simulation::try_move(int i, int x, int y, int nx, int ny)
 		break;
 	}
 
-	if ((bmap[y / CELL][x / CELL] == WL_EHOLE && !emap[y / CELL][x / CELL]) && !(bmap[ny / CELL][nx / CELL] == WL_EHOLE && !emap[ny / CELL][nx / CELL]))
+	if ((getBlock(x / CELL, y / CELL) == WL_EHOLE && !getBlockE(x / CELL, y / CELL)) && !(getBlock(nx / CELL, ny / CELL) == WL_EHOLE && !getBlockE(nx / CELL, ny / CELL)))
 		return 0;
 
 	int ri = ID(r); //ri is the particle number at r (pmap[ny][nx])
@@ -2281,7 +2320,7 @@ Simulation::PlanMoveResult Simulation::PlanMove(Sim& sim, int i, int x, int y)
 		fin_yf = parts[i].y;
 		fin_x = (int)(fin_xf + 0.5f);
 		fin_y = (int)(fin_yf + 0.5f);
-		bool closedEholeStart = InBounds(fin_x, fin_y) && (bmap[fin_y / CELL][fin_x / CELL] == WL_EHOLE && !emap[fin_y / CELL][fin_x / CELL]);
+		bool closedEholeStart = InBounds(fin_x, fin_y) && (sim.readBlock(fin_x / CELL, fin_y / CELL) == WL_EHOLE && !sim.readBlockE(fin_x / CELL, fin_y / CELL));
 		while (1)
 		{
 			mv -= ISTP;
@@ -2414,27 +2453,29 @@ void Simulation::UpdateParticles(int start, int end)
 		}
 
 		// Kill a particle in a wall where it isn't supposed to go
-		if (bmap[y / CELL][x / CELL] &&
-			(bmap[y / CELL][x / CELL] == WL_WALL ||
-				bmap[y / CELL][x / CELL] == WL_WALLELEC ||
-				bmap[y / CELL][x / CELL] == WL_ALLOWAIR ||
-				(bmap[y / CELL][x / CELL] == WL_DESTROYALL) ||
-				(bmap[y / CELL][x / CELL] == WL_ALLOWLIQUID && !(elements[t].Properties & TYPE_LIQUID)) ||
-				(bmap[y / CELL][x / CELL] == WL_ALLOWPOWDER && !(elements[t].Properties & TYPE_PART)) ||
-				(bmap[y / CELL][x / CELL] == WL_ALLOWGAS && !(elements[t].Properties & TYPE_GAS)) || //&& elements[t].Falldown!=0 && parts[i].type!=PT_FIRE && parts[i].type!=PT_SMKE && parts[i].type!=PT_CFLM) ||
-				(bmap[y / CELL][x / CELL] == WL_ALLOWENERGY && !(elements[t].Properties & TYPE_ENERGY)) ||
-				(bmap[y / CELL][x / CELL] == WL_EWALL && !emap[y / CELL][x / CELL])) && (t != PT_STKM) && (t != PT_STKM2) && (t != PT_FIGH))
+		unsigned char block = readBlock(x / CELL, y / CELL);
+		unsigned char blockE = readBlockE(x / CELL, y / CELL);
+		if (block &&
+			(block == WL_WALL ||
+				block == WL_WALLELEC ||
+				block == WL_ALLOWAIR ||
+				(block == WL_DESTROYALL) ||
+				(block == WL_ALLOWLIQUID && !(elements[t].Properties & TYPE_LIQUID)) ||
+				(block == WL_ALLOWPOWDER && !(elements[t].Properties & TYPE_PART)) ||
+				(block == WL_ALLOWGAS && !(elements[t].Properties & TYPE_GAS)) || //&& elements[t].Falldown!=0 && parts[i].type!=PT_FIRE && parts[i].type!=PT_SMKE && parts[i].type!=PT_CFLM) ||
+				(block == WL_ALLOWENERGY && !(elements[t].Properties & TYPE_ENERGY)) ||
+				(block == WL_EWALL && !blockE)) && (t != PT_STKM) && (t != PT_STKM2) && (t != PT_FIGH))
 		{
 			kill_part(i);
 			continue;
 		}
 
 		// Make sure that STASIS'd particles don't tick.
-		if (bmap[y / CELL][x / CELL] == WL_STASIS && emap[y / CELL][x / CELL] < 8) {
+		if (block == WL_STASIS && blockE < 8) {
 			continue;
 		}
 
-		if (bmap[y / CELL][x / CELL] == WL_DETECT && emap[y / CELL][x / CELL] < 8)
+		if (block == WL_DETECT && blockE < 8)
 			set_emap(x / CELL, y / CELL);
 
 		//adding to velocity from the particle's velocity
@@ -3874,8 +3915,9 @@ void Simulation::BeforeSim(bool willUpdate)
 			{
 				if (emap[y][x])
 					emap[y][x]--;
-				air->bmap_blockair[y][x] = (bmap[y][x] == WL_WALL || bmap[y][x] == WL_WALLELEC || bmap[y][x] == WL_BLOCKAIR || (bmap[y][x] == WL_EWALL && !emap[y][x]));
-				air->bmap_blockairh[y][x] = (air->bmap_blockair[y][x] || bmap[y][x] == WL_GRAV) ? 0x8 : 0;
+				unsigned char block = getBlock(x,y);
+				air->bmap_blockair[y][x] = (block == WL_WALL || block == WL_WALLELEC || block == WL_BLOCKAIR || (block == WL_EWALL && !emap[y][x]));
+				air->bmap_blockairh[y][x] = (air->bmap_blockair[y][x] || block == WL_GRAV) ? 0x8 : 0;
 			}
 		}
 
