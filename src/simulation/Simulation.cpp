@@ -31,7 +31,7 @@ static int iremainder_p(int x, int y)
 	return (x % y) + (x >= 0 ? 0 : y);
 }
 
-int RenderableSimulation::getPart(const int x, const int y)
+int& RenderableSimulation::getPart(const int x, const int y)
 {
 	switch (this->edgeMode)
 	{
@@ -40,6 +40,54 @@ int RenderableSimulation::getPart(const int x, const int y)
 	default:
 	case EDGE_VOID:
 		return pmap[y][x];
+	}
+}
+
+int& RenderableSimulation::getPhoton(const int x, const int y)
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return photons[iremainder_p(y - CELL, YRES - 2 * CELL) + CELL][iremainder_p(x - CELL, XRES - 2 * CELL) + CELL];
+	default:
+	case EDGE_VOID:
+		return photons[y][x];
+	}
+}
+
+int RenderableSimulation::readPart(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return pmap[iremainder_p(y - CELL, YRES - 2 * CELL) + CELL][iremainder_p(x - CELL, XRES - 2 * CELL) + CELL];
+	default:
+	case EDGE_VOID:
+		return pmap[y][x];
+	}
+}
+
+int RenderableSimulation::readPhoton(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return photons[iremainder_p(y - CELL, YRES - 2 * CELL) + CELL][iremainder_p(x - CELL, XRES - 2 * CELL) + CELL];
+	default:
+	case EDGE_VOID:
+		return photons[y][x];
+	}
+}
+
+bool RenderableSimulation::isPosValid(const int x, const int y) const
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return true;
+	default:
+	case EDGE_VOID:
+		return (x >= 0 && y >= 0 && x < XRES && y < YRES);
 	}
 }
 
@@ -86,6 +134,22 @@ void RenderableSimulation::DiffPos(const float fromX, const float fromY, const f
 	default:
 		outx = toX - fromX;
 		outy = toY - fromY;
+		return;
+	}
+}
+
+void RenderableSimulation::setPos(const int i, const float nx, const float ny)
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		parts[i].x = remainder_p(nx - CELL, XRES - 2 * CELL) + CELL;
+		parts[i].y = remainder_p(ny - CELL, YRES - 2 * CELL) + CELL;
+		return;
+	default:
+	case EDGE_VOID:
+		parts[i].x = nx;
+		parts[i].y = ny;
 		return;
 	}
 }
@@ -1148,10 +1212,10 @@ int Simulation::eval_move(int pt, int nx, int ny, unsigned* rr) const
 	unsigned r;
 	int result;
 
-	if (nx < 0 || ny < 0 || nx >= XRES || ny >= YRES)
+	if (!isPosValid(nx,ny))
 		return 0;
 
-	r = pmap[ny][nx];
+	r = readPart(nx,ny);
 	if (r)
 		r = (r & ~PMAPMASK) | parts[ID(r)].type;
 	if (rr)
@@ -1235,7 +1299,7 @@ int Simulation::try_move(int i, int x, int y, int nx, int ny)
 
 	if (x == nx && y == ny)
 		return 1;
-	if (nx < 0 || ny < 0 || nx >= XRES || ny >= YRES)
+	if (!isPosValid(nx,ny))
 		return 1;
 
 	e = eval_move(parts[i].type, nx, ny, &r);
@@ -1889,13 +1953,15 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 
 	auto& sd = SimulationData::CRef();
 	auto& elements = sd.elements;
-	if (x < 0 || y < 0 || x >= XRES || y >= YRES || t <= 0 || t >= PT_NUM || !elements[t].Enabled)
+	if (!isPosValid(x,y) || t <= 0 || t >= PT_NUM || !elements[t].Enabled)
 		return -1;
 
-	if (t == PT_SPRK && p != -3 && !(p == -2 && elements[TYP(pmap[y][x])].CtypeDraw))
+	int& overlapped = this->getPart(x,y);
+
+	if (t == PT_SPRK && p != -3 && !(p == -2 && elements[TYP(overlapped)].CtypeDraw))
 	{
-		int type = TYP(pmap[y][x]);
-		int index = ID(pmap[y][x]);
+		int type = TYP(overlapped);
+		int index = ID(overlapped);
 		if (type == PT_WIRE)
 		{
 			parts[index].ctype = PT_DUST;
@@ -1911,7 +1977,7 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 		parts[index].type = PT_SPRK;
 		parts[index].life = 4;
 		parts[index].ctype = type;
-		pmap[y][x] = (pmap[y][x] & ~PMAPMASK) | PT_SPRK;
+		overlapped = (overlapped & ~PMAPMASK) | PT_SPRK;
 		if (parts[index].temp + 10.0f < 673.0f && !legacy_enable && (type == PT_METL || type == PT_BMTL || type == PT_BRMT || type == PT_PSCN || type == PT_NSCN || type == PT_ETRD || type == PT_NBLE || type == PT_IRON))
 			parts[index].temp = parts[index].temp + 10.0f;
 		return index;
@@ -1919,16 +1985,16 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 
 	if (p == -2)
 	{
-		if (pmap[y][x])
+		if (overlapped)
 		{
-			int drawOn = TYP(pmap[y][x]);
+			int drawOn = TYP(overlapped);
 			if (elements[drawOn].CtypeDraw)
-				elements[drawOn].CtypeDraw(this, ID(pmap[y][x]), t, v);
+				elements[drawOn].CtypeDraw(this, ID(overlapped), t, v);
 			return -1;
 		}
 		else if (IsWallBlocking(x, y, t))
 			return -1;
-		else if (photons[y][x] && (elements[t].Properties & TYPE_ENERGY))
+		else if (getPhoton(x,y) && (elements[t].Properties & TYPE_ENERGY))
 			return -1;
 	}
 
@@ -1948,7 +2014,7 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 			// If there isn't a particle but there is a wall, check whether the new particle is allowed to be in it
 			//   (not "!=2" for wall check because eval_move returns 1 for moving into empty space)
 			// If there's no particle and no wall, assume creation is allowed
-			if (pmap[y][x] ? (eval_move(t, x, y, nullptr) != 2) : (bmap[y / CELL][x / CELL] && eval_move(t, x, y, nullptr) == 0))
+			if (overlapped ? (eval_move(t, x, y, nullptr) != 2) : (bmap[y / CELL][x / CELL] && eval_move(t, x, y, nullptr) == 0))
 			{
 				return -1;
 			}
@@ -1964,10 +2030,12 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 	{
 		int oldX = (int)(parts[p].x + 0.5f);
 		int oldY = (int)(parts[p].y + 0.5f);
-		if (pmap[oldY][oldX] && ID(pmap[oldY][oldX]) == p)
-			pmap[oldY][oldX] = 0;
-		if (photons[oldY][oldX] && ID(photons[oldY][oldX]) == p)
-			photons[oldY][oldX] = 0;
+		int& oldOverlapped = getPart(oldX, oldY);
+		int& oldOverlappedPhoton = getPhoton(oldX, oldY);
+		if (oldOverlapped && ID(oldOverlapped) == p)
+			oldOverlapped = 0;
+		if (oldOverlappedPhoton && ID(oldOverlappedPhoton) == p)
+			oldOverlappedPhoton = 0;
 
 		oldType = parts[p].type;
 
@@ -1981,14 +2049,13 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 
 	parts[i] = elements[t].DefaultProperties;
 	parts[i].type = t;
-	parts[i].x = (float)x;
-	parts[i].y = (float)y;
+	setPos(i, float(x), float(y));
 
 	//and finally set the pmap/photon maps to the newly created particle
 	if (elements[t].Properties & TYPE_ENERGY)
-		photons[y][x] = PMAP(i, t);
+		getPhoton(x,y) = PMAP(i, t);
 	else if (t != PT_STKM && t != PT_STKM2 && t != PT_FIGH)
-		pmap[y][x] = PMAP(i, t);
+		overlapped = PMAP(i, t);
 
 	//Fancy dust effects for powder types
 	if ((elements[t].Properties & TYPE_PART) && pretty_powder)
@@ -2048,7 +2115,7 @@ void Simulation::create_gain_photon(int pp)//photons from PHOT going through GLO
 	{
 		return;
 	}
-	auto g = pmap[ny][nx];
+	auto g = getPart(nx,ny);
 	if (TYP(g) != PT_GLOW)
 	{
 		return;
@@ -2152,7 +2219,8 @@ void Simulation::delete_part(int x, int y)//calls kill_part with the particle lo
 	if (x < 0 || y < 0 || x >= XRES || y >= YRES)
 		return;
 
-	i = photons[y][x] ? photons[y][x] : pmap[y][x];
+	int& photon = getPhoton(x,y);
+	i = photon ? photon : getPart(x,y);
 
 	if (!i)
 		return;
@@ -2245,7 +2313,8 @@ Simulation::PlanMoveResult Simulation::PlanMove(Sim& sim, int i, int x, int y)
 			//block if particle can't move (0), or some special cases where it returns 1 (can_move = 3 but returns 1 meaning particle will be eaten)
 			//also photons are still blocked (slowed down) by any particle (even ones it can move through), and absorb wall also blocks particles
 			int eval = sim.eval_move(t, fin_x, fin_y, nullptr);
-			if (!eval || (can_move[t][TYP(pmap[fin_y][fin_x])] == 3 && eval == 1) || (t == PT_PHOT && pmap[fin_y][fin_x]) || bmap[fin_y / CELL][fin_x / CELL] == WL_DESTROYALL || closedEholeStart != (bmap[fin_y / CELL][fin_x / CELL] == WL_EHOLE && !emap[fin_y / CELL][fin_x / CELL]))
+			int fin_part = pmap[fin_y][fin_x];
+			if (!eval || (can_move[t][TYP(fin_part)] == 3 && eval == 1) || (t == PT_PHOT && fin_part) || bmap[fin_y / CELL][fin_x / CELL] == WL_DESTROYALL || closedEholeStart != (bmap[fin_y / CELL][fin_x / CELL] == WL_EHOLE && !emap[fin_y / CELL][fin_x / CELL]))
 			{
 				// found an obstacle
 				clear_xf = fin_xf - dx;
@@ -2293,7 +2362,7 @@ Simulation::Neighbourhood Simulation::GetNeighbourhood(int i) const
 		{
 			if (nx || ny)
 			{
-				auto r = pmap[y + ny][x + nx];
+				int r = readPart(x + nx,y + ny);
 				n.surround[j] = r;
 				j++;
 				n.surround_space += (!TYP(r)); // count empty space
@@ -2468,7 +2537,7 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood& neighbourhood)
 			// Some heat convection for liquids
 			if (offsetX != x || offsetY != y)
 			{
-				auto r = pmap[offsetY][offsetX];
+				auto r = getPart(offsetX,offsetY);
 				if (r && parts[i].type == TYP(r))
 				{
 					if (parts[i].temp > parts[ID(r)].temp)
@@ -2955,19 +3024,21 @@ void Simulation::MovementPhase(int i, Neighbourhood neighbourhood)
 		}
 		if (ny != y || nx != x)
 		{
-			if (pmap[y][x] && ID(pmap[y][x]) == i)
-				pmap[y][x] = 0;
-			else if (photons[y][x] && ID(photons[y][x]) == i)
-				photons[y][x] = 0;
+			int& part = getPart(x,y);
+			int& photon = getPhoton(x, y);
+			if (part && ID(part) == i)
+				part = 0;
+			else if (photon && ID(photon) == i)
+				photon = 0;
 			if (nx < CELL || nx >= XRES - CELL || ny < CELL || ny >= YRES - CELL)
 			{
 				kill_part(i);
 				return;
 			}
 			if (elements[t].Properties & TYPE_ENERGY)
-				photons[ny][nx] = PMAP(i, t);
+				getPhoton(nx,ny) = PMAP(i, t);
 			else if (t)
-				pmap[ny][nx] = PMAP(i, t);
+				getPart(nx,ny) = PMAP(i, t);
 		}
 	}
 	else if (elements[t].Properties & TYPE_ENERGY)
@@ -2982,8 +3053,8 @@ void Simulation::MovementPhase(int i, Neighbourhood neighbourhood)
 
 			if (eval_move(PT_PHOT, fin_x, fin_y, nullptr))
 			{
-				int rt = TYP(pmap[fin_y][fin_x]);
-				int lt = TYP(pmap[y][x]);
+				int rt = TYP(getPart(fin_x,fin_y));
+				int lt = TYP(getPart(x,y));
 				int rt_glas = (rt == PT_GLAS) || (rt == PT_BGLA);
 				int lt_glas = (lt == PT_GLAS) || (lt == PT_BGLA);
 				if ((rt_glas && !lt_glas) || (lt_glas && !rt_glas))
@@ -3389,8 +3460,9 @@ void Simulation::RecalcFreeParticles(bool do_life_dec)
 			{
 				// Particles are sometimes allowed to go inside INVS and FILT
 				// To make particles collide correctly when inside these elements, these elements must not overwrite an existing pmap entry from particles inside them
-				if (!pmap[y][x] || (t != PT_INVIS && t != PT_FILT))
-					pmap[y][x] = PMAP(i, t);
+				int& part = getPart(x,y);
+				if (!part || (t != PT_INVIS && t != PT_FILT))
+					part = PMAP(i, t);
 				// (there are a few exceptions, including energy particles - currently no limit on stacking those)
 				if (t != PT_THDR && t != PT_EMBR && t != PT_FIGH && t != PT_PLSM)
 					pmap_count[y][x]++;
@@ -3543,7 +3615,7 @@ void Simulation::SimulateGoL()
 	{
 		for (int x = CELL; x < XRES - CELL; ++x)
 		{
-			int r = pmap[y][x];
+			int r = getPart(x,y);
 			if (r && TYP(r) != PT_LIFE)
 			{
 				continue;
@@ -3606,7 +3678,7 @@ void Simulation::SimulateGoL()
 								if (yy == 3) yy = -1;
 								int ax = ((x - xx + XRES - 3 * CELL) % (XRES - 2 * CELL)) + CELL;
 								int ay = ((y - yy + YRES - 3 * CELL) % (YRES - 2 * CELL)) + CELL;
-								auto& sample = parts[ID(pmap[ay][ax])];
+								auto& sample = parts[ID(getPart(ax,ay))];
 								parts[i].dcolour = sample.dcolour;
 								parts[i].tmp = sample.tmp;
 							}
@@ -3624,7 +3696,7 @@ void Simulation::SimulateGoL()
 	{
 		for (int x = CELL; x < XRES - CELL; ++x)
 		{
-			int r = pmap[y][x];
+			int r = getPart(x,y);
 			if (r && TYP(r) == PT_LIFE && parts[ID(r)].tmp2 <= 0)
 			{
 				kill_part(ID(r));

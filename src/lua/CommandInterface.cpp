@@ -293,13 +293,13 @@ static std::vector<int> EvaluateSelector(Simulation *sim, AnyType selector)
 		if(selector.GetType() == TypePoint)
 		{
 			ui::Point tempPoint = ((PointType)selector).Value();
-			if(tempPoint.X<0 || tempPoint.Y<0 || tempPoint.Y >= YRES || tempPoint.X >= XRES)
+			if(!sim->isPosValid(tempPoint.X,tempPoint.Y))
 				throw GeneralException("Invalid position");
 
-			auto r = sim->pmap[tempPoint.Y][tempPoint.X];
+			auto r = sim->readPart(tempPoint.X,tempPoint.Y);
 			if (!r)
 			{
-				r = sim->photons[tempPoint.Y][tempPoint.X];
+				r = sim->readPhoton(tempPoint.X,tempPoint.Y);
 			}
 			if (r)
 			{
@@ -500,7 +500,7 @@ AnyType CommandInterface::tptS_create(std::deque<String> * words)
 		throw GeneralException("Invalid particle type");
 
 	ui::Point tempPoint = position.Value();
-	if(tempPoint.X<0 || tempPoint.Y<0 || tempPoint.Y >= YRES || tempPoint.X >= XRES)
+	if(!sim->isPosValid(tempPoint.X,tempPoint.Y<0))
 				throw GeneralException("Invalid position");
 
 	int v = -1;

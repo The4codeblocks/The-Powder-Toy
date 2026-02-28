@@ -108,9 +108,16 @@ struct RenderableSimulation
 	int pmap[YRES][XRES];
 	int photons[YRES][XRES];
 
-	int getPart(const int x, const int y);
+	int& getPart(const int x, const int y);
+	int& getPhoton(const int x, const int y);
+	int readPart(const int x, const int y) const;
+	int readPhoton(const int x, const int y) const;
 
 	int edgeMode = EDGE_VOID;
+
+	bool isPosValid(const int x, const int y) const;
+
+	void setPos(const int i, const float nx, const float ny);
 
 	int aheat_enable = 0;
 

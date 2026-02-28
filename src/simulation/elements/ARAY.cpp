@@ -58,7 +58,7 @@ static int update(UPDATE_FUNC_ARGS)
 		{
 			if (rx || ry)
 			{
-				int r = pmap[y+ry][x+rx];
+				int r = sim->getPart(x+rx,y+ry);
 				if (!r)
 					continue;
 				if (TYP(r) == PT_SPRK && parts[ID(r)].life == 3)
@@ -69,10 +69,10 @@ static int update(UPDATE_FUNC_ARGS)
 					int colored = 0, rt;
 					for (int docontinue = 1, nxx = 0, nyy = 0, nxi = rx*-1, nyi = ry*-1; docontinue; nyy+=nyi, nxx+=nxi)
 					{
-						if (!(x+nxi+nxx<XRES && y+nyi+nyy<YRES && x+nxi+nxx >= 0 && y+nyi+nyy >= 0))
+						if (!sim->isPosValid(x+nxi+nxx,y+nyi+nyy))
 							break;
 
-						r = pmap[y+nyi+nyy][x+nxi+nxx];
+						r = sim->getPart(x+nxi+nxx,y+nyi+nyy);
 						rt = TYP(r);
 						r = ID(r);
 						if (!rt)
