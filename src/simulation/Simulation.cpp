@@ -260,6 +260,18 @@ void RenderableSimulation::setPos(const int i, const float nx, const float ny)
 	}
 }
 
+unsigned int (& Simulation::getGol(const int x, const int y))[5]
+{
+	switch (this->edgeMode)
+	{
+	case EDGE_LOOP:
+		return gol[iremainder_p(y - CELL, YRES - 2 * CELL) + CELL][iremainder_p(x - CELL, XRES - 2 * CELL) + CELL];
+	default:
+	case EDGE_VOID:
+		return gol[y][x];
+	}
+}
+
 void Simulation::Load(const GameSave* save, bool includePressure, Vec2<int> blockP) // block coordinates
 {
 	auto partP = blockP * CELL;
@@ -3619,11 +3631,12 @@ void Simulation::SimulateGoL()
 						//   this a bit awkward.
 						int ax = ((x + xx + XRES - 3 * CELL) % (XRES - 2 * CELL)) + CELL;
 						int ay = ((y + yy + YRES - 3 * CELL) % (YRES - 2 * CELL)) + CELL;
-						if (pmap[ay][ax] && TYP(pmap[ay][ax]) != PT_LIFE)
+						int part = readPart(x+xx,y+yy);
+						if (part && TYP(part) != PT_LIFE)
 						{
 							continue;
 						}
-						unsigned int(&neighbourList)[5] = gol[ay][ax];
+						unsigned int(&neighbourList)[5] = getGol(x+xx,y+yy);
 						// * Bump overall neighbour counter (bits 30..28) for the entire list.
 						neighbourList[0] += 1U << 28;
 						for (int l = 0; l < 5; ++l)

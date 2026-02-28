@@ -163,6 +163,8 @@ public:
 	int GSPEED = 1;
 	unsigned int gol[YRES][XRES][5];
 
+	unsigned int (&getGol(const int x, const int y))[5];
+
 	float fvx[YCELLS][XCELLS];
 	float fvy[YCELLS][XCELLS];
 	int Element_LOLZ_lolz[XRES / 9][YRES / 9];
