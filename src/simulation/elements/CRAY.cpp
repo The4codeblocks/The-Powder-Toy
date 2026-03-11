@@ -62,9 +62,9 @@ static int update(UPDATE_FUNC_ARGS)
 		{
 			for (int ry = -1; ry <= 1; ry++)
 			{
-				int r = sim->photons[y+ry][x+rx];
+				int r = sim->readPhoton(x+rx,y+ry);
 				if (!r)
-					r = pmap[y+ry][x+rx];
+					r = sim->readPart(x + rx, y + ry);
 				if (!r)
 					continue;
 				if (TYP(r)!=PT_CRAY && TYP(r)!=PT_PSCN && TYP(r)!=PT_INST && TYP(r)!=PT_METL && TYP(r)!=PT_SPRK && TYP(r)<PT_NUM)
@@ -83,7 +83,7 @@ static int update(UPDATE_FUNC_ARGS)
 			{
 				if (rx || ry)
 				{
-					int r = pmap[y+ry][x+rx];
+					int r = sim->getPart(x+rx,y+ry);
 					if (!r)
 						continue;
 					if (TYP(r)==PT_SPRK && parts[ID(r)].life==3) { //spark found, start creating
@@ -95,14 +95,15 @@ static int update(UPDATE_FUNC_ARGS)
 						if (parts[i].tmp) //how far it shoots
 							partsRemaining = parts[i].tmp;
 						int spacesRemaining = parts[i].tmp2;
+						int created = parts[i].ctype;
 						for (docontinue = 1, nxi = rx*-1, nyi = ry*-1, nxx = spacesRemaining*nxi, nyy = spacesRemaining*nyi; docontinue; nyy+=nyi, nxx+=nxi)
 						{
-							if (!(x+nxi+nxx<XRES && y+nyi+nyy<YRES && x+nxi+nxx >= 0 && y+nyi+nyy >= 0)) {
+							if (!sim->isPosSafe(x+nxi+nxx, y+nyi+nyy)) {
 								break;
 							}
-							r = pmap[y+nyi+nyy][x+nxi+nxx];
-							if (!sim->IsWallBlocking(x+nxi+nxx, y+nyi+nyy, TYP(parts[i].ctype)) && (!sim->pmap[y+nyi+nyy][x+nxi+nxx] || createSpark)) { // create, also set color if it has passed through FILT
-								int nr = sim->create_part(-1, x+nxi+nxx, y+nyi+nyy, TYP(parts[i].ctype), ID(parts[i].ctype));
+							r = sim->getPart(x+nxi+nxx, y+nyi+nyy);
+							if (!sim->IsWallBlocking(x+nxi+nxx, y+nyi+nyy, TYP(created)) && (!r || createSpark)) { // create, also set color if it has passed through FILT
+								int nr = sim->create_part(-1, x+nxi+nxx, y+nyi+nyy, TYP(created), ID(created));
 								if (nr!=-1) {
 									if (colored)
 										parts[nr].dcolour = colored;
@@ -112,6 +113,8 @@ static int update(UPDATE_FUNC_ARGS)
 									if(!--partsRemaining)
 										docontinue = 0;
 								}
+								else if (TYP(created) == PT_SPRK && !--partsRemaining)
+									docontinue = 0;
 							} else if (TYP(r)==PT_FILT) { // get color if passed through FILT
 								if (parts[ID(r)].dcolour == 0xFF000000)
 									colored = 0xFF000000;

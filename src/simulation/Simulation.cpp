@@ -810,11 +810,11 @@ int Simulation::FloodINST(int x, int y)
 	int created_something = 0;
 
 	const auto isSparkableInst = [this](int x, int y) -> bool {
-		return TYP(pmap[y][x]) == PT_INST && parts[ID(pmap[y][x])].life == 0;
+		return TYP(readPart(x,y)) == PT_INST && parts[ID(readPart(x,y))].life == 0;
 	};
 
 	const auto isInst = [this](int x, int y) -> bool {
-		return TYP(pmap[y][x]) == PT_INST || (TYP(pmap[y][x]) == PT_SPRK && parts[ID(pmap[y][x])].ctype == PT_INST);
+		return TYP(readPart(x,y)) == PT_INST || (TYP(readPart(x,y)) == PT_SPRK && parts[ID(readPart(x,y))].ctype == PT_INST);
 	};
 
 	if (!isSparkableInst(x, y))
@@ -823,6 +823,9 @@ int Simulation::FloodINST(int x, int y)
 	CoordStack& cs = getCoordStackSingleton();
 	cs.clear();
 
+	//bool done[YRES][XRES];
+	//for (int i = 0)
+
 	cs.push(x, y);
 
 	try
@@ -830,27 +833,131 @@ int Simulation::FloodINST(int x, int y)
 		do
 		{
 			cs.pop(x, y);
+			if (false){
+			if (isInst(x + 1, y)) {
+				if (isInst(x + 1, y + 1) && isInst(x + 1, y - 1) && isInst(x + 2, y))
+				{
+					if (isSparkableInst(x + 1, y) && create_part(-1, x + 1, y, PT_SPRK) >= 0)
+						created_something = 1;
+					if (isSparkableInst(x + 2, y) || true)
+					{
+						cs.push(x + 2, y);
+						if (create_part(-1, x + 2, y, PT_SPRK) >= 0)
+							created_something = 1;
+					}
+				}
+				else
+				{
+					cs.push(x + 1, y);
+					if (create_part(-1, x + 1, y, PT_SPRK) >= 0)
+						created_something = 1;
+				}
+			}
+			if (isInst(x - 1, y)) {
+				if (isInst(x - 1, y + 1) && isInst(x - 1, y - 1) && isInst(x - 2, y))
+				{
+					if (isSparkableInst(x - 1, y) && create_part(-1, x - 1, y, PT_SPRK) >= 0)
+						created_something = 1;
+					if (isSparkableInst(x - 2, y) || true)
+					{
+						cs.push(x - 2, y);
+						if (create_part(-1, x - 2, y, PT_SPRK) >= 0)
+							created_something = 1;
+					}
+				}
+				else
+				{
+					cs.push(x - 1, y);
+					if (create_part(-1, x - 1, y, PT_SPRK) >= 0)
+						created_something = 1;
+				}
+			}
+
+			if (isInst(x, y + 1)) {
+				if (isInst(x + 1, y + 1) && isInst(x - 1, y + 1) && isInst(x, y + 2))
+				{
+					if (isSparkableInst(x, y + 1) && create_part(-1, x, y + 1, PT_SPRK) >= 0)
+						created_something = 1;
+					if (isSparkableInst(x, y + 2) || true)
+					{
+						cs.push(x, y + 2);
+						if (create_part(-1, x, y + 2, PT_SPRK) >= 0)
+							created_something = 1;
+					}
+				}
+				else
+				{
+					cs.push(x, y + 1);
+					if (create_part(-1, x, y + 1, PT_SPRK) >= 0)
+						created_something = 1;
+				}
+			}
+			if (isInst(x, y - 1)) {
+				if (isInst(x + 1, y - 1) && isInst(x - 1, y - 1) && isInst(x, y - 2))
+				{
+					if (isSparkableInst(x, y - 1) && create_part(-1, x, y - 1, PT_SPRK) >= 0)
+						created_something = 1;
+					if (isSparkableInst(x, y - 2) || true)
+					{
+						cs.push(x, y - 2);
+						if (create_part(-1, x, y - 2, PT_SPRK) >= 0)
+							created_something = 1;
+					}
+				}
+				else
+				{
+					cs.push(x, y - 1);
+					if (create_part(-1, x, y - 1, PT_SPRK) >= 0)
+						created_something = 1;
+				}
+			}
+			}
+		
+
 			x1 = x2 = x;
 			// go left as far as possible
-			while (x1 >= CELL && isSparkableInst(x1 - 1, y))
+			switch (edgeMode)
 			{
-				x1--;
-			}
-			// go right as far as possible
-			while (x2 < XRES - CELL && isSparkableInst(x2 + 1, y))
-			{
-				x2++;
-			}
-			// fill span
-			for (x = x1; x <= x2; x++)
-			{
-				if (create_part(-1, x, y, PT_SPRK) >= 0)
-					created_something = 1;
+			case EDGE_LOOP:
+				while (isSparkableInst(x1 - 1, y))
+				{
+					x1--;
+					if (x1 == x - (XRES - CELL * 2) + 1) break;
+				}
+				// go right as far as possible
+				while (isSparkableInst(x2 + 1, y))
+				{
+					if (x2 == x1 + (XRES - CELL * 2) - 1) break;
+					x2++;
+				}
+				// fill span
+				for (x = x1; x <= x2; ++x)
+				{
+					if (create_part(-1, x, y, PT_SPRK) >= 0)
+						created_something = 1;
+				}
+			default:
+			case EDGE_VOID:
+				while (x1 >= CELL && isSparkableInst(x1 - 1, y))
+				{
+					x1--;
+				}
+				// go right as far as possible
+				while (x2 < XRES - CELL-1 && isSparkableInst(x2 + 1, y))
+				{
+					x2++;
+				}
+				// fill span
+				for (x = x1; x <= x2; x++)
+				{
+					if (create_part(-1, x, y, PT_SPRK) >= 0)
+						created_something = 1;
+				}
 			}
 
 			// add vertically adjacent pixels to stack
 			// (wire crossing for INST)
-			if (y >= CELL + 1 && x1 == x2 &&
+			if (x1 == x2 &&
 				isInst(x1 - 1, y - 1) && isInst(x1, y - 1) && isInst(x1 + 1, y - 1) &&
 				!isInst(x1 - 1, y - 2) && isInst(x1, y - 2) && !isInst(x1 + 1, y - 2))
 			{
@@ -860,13 +967,13 @@ int Simulation::FloodINST(int x, int y)
 					cs.push(x1, y - 2);
 				}
 			}
-			else if (y >= CELL + 1)
+			else if (isPosSafe(x,y - 1))
 			{
 				for (x = x1; x <= x2; x++)
 				{
 					if (isSparkableInst(x, y - 1))
 					{
-						if (x == x1 || x == x2 || y >= YRES - CELL - 1 || !isInst(x, y + 1) || isInst(x + 1, y + 1) || isInst(x - 1, y + 1))
+						if (x == x1 || x == x2 || !isInst(x, y + 1) || isInst(x + 1, y + 1) || isInst(x - 1, y + 1))
 						{
 							// if at the end of a horizontal section, or if it's a T junction or not a 1px wire crossing
 							cs.push(x, y - 1);
@@ -875,7 +982,7 @@ int Simulation::FloodINST(int x, int y)
 				}
 			}
 
-			if (y < YRES - CELL - 1 && x1 == x2 &&
+			if (x1 == x2 &&
 				isInst(x1 - 1, y + 1) && isInst(x1, y + 1) && isInst(x1 + 1, y + 1) &&
 				!isInst(x1 - 1, y + 2) && isInst(x1, y + 2) && !isInst(x1 + 1, y + 2))
 			{
@@ -885,16 +992,16 @@ int Simulation::FloodINST(int x, int y)
 					cs.push(x1, y + 2);
 				}
 			}
-			else if (y < YRES - CELL - 1)
+			else if (isPosSafe(x, y + 1))
 			{
 				for (x = x1; x <= x2; x++)
 				{
 					if (isSparkableInst(x, y + 1))
 					{
-						if (x == x1 || x == x2 || y < 0 || !isInst(x, y - 1) || isInst(x + 1, y - 1) || isInst(x - 1, y - 1))
+						if (x == x1 || x == x2 || !isInst(x, y - 1) || isInst(x + 1, y - 1) || isInst(x - 1, y - 1))
 						{
-							// if at the end of a horizontal section, or if it's a T junction or not a 1px wire crossing
 							cs.push(x, y + 1);
+							// if at the end of a horizontal section, or if it's a T junction or not a 1px wire crossing
 						}
 
 					}
